@@ -12,7 +12,7 @@ This Python script is intended to solve the problem. It runs the `NET USE` comma
 It can optionally log progress to a log file and send mail. If the network interface is slow to come up, the script can first check network connectivity by attempting to contact an arbitrary server (the Google's public DNS server by default).
 
 ## Usage
-The script requires Python (tested with 2.7.15). Alternatively you can package it with, e.g., [PyInstaller](https://www.pyinstaller.org/) and run it as a standalone executable.
+The script requires Python (tested with 2.7.15). Alternatively you can package it with, e.g., [PyInstaller](https://www.pyinstaller.org/) and run it as a standalone executable. The pre-packaged files are available in the [dist](https://github.com/JanKalin/restore_net_use/tree/master/dist/restore_net_use) subdirectory.
 
 You can read the help by passing argument `-h`:
 
