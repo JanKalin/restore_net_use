@@ -59,6 +59,8 @@ Use Windows Task Scheduler to schedule a script to run at boot. The script's par
   - *Program/script* containing `<PATH_TO_PYTHON>\python.exe` and
   - *Add arguments (optional)* containing `<PATH_TO_SCRIPT>\restore_net_use.py @<PATH_TO_OPTIONS_FILE>\restore_net_use.opt`
 
+Alternatively you can start the task at user logon for per-user shares.
+
 Here is an example of an options file, `restore_net_use.opt` used on the author's system
 ```
 --conntimeout
