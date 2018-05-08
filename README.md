@@ -18,8 +18,7 @@ You can read the help by passing argument `-h`:
 
 ```
 quark % restore_net_use.py -h
-usage: restore_net_use.py [-h] [--timeout TIMEOUT]
-                          [--conntest CONNTEST CONNTEST]
+usage: restore_net_use.py [-h] [--timeout TIMEOUT] [--conntest ADDR:PORT]
                           [--conntimeout CONNTIMEOUT] [--logfile LOGFILE]
                           [--smtp SMTP] [--sender SENDER]
                           [--recipients RECIPIENTS [RECIPIENTS ...]]
@@ -33,10 +32,9 @@ optional arguments:
   -h, --help            show this help message and exit
   --timeout TIMEOUT     Timeout in seconds for each NET USE operation
                         (default: 60)
-  --conntest CONNTEST CONNTEST
-                        Try connecting to ADDR:PORT as a test of general
+  --conntest ADDR:PORT  Try connecting to ADDR:PORT as a test of general
                         connectivity. The default is Google's public DNS
-                        server (default: ['8.8.8.8', 53])
+                        server. Port 445 is SMB port (default: 8.8.8.8:53)
   --conntimeout CONNTIMEOUT
                         Timeout for connectivity test. Do not test if
                         undefined (default: None)
