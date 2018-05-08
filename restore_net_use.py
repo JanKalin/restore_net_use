@@ -35,7 +35,7 @@ parser = argparse.ArgumentParser(description=description,
                                fromfile_prefix_chars='@', 
                                formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument("--timeout", help="Timeout in seconds for each NET USE operation", type=int, default=60)
-parser.add_argument("--conntest", help="Try connecting to ADDR:PORT as a test of general connectivity. The default is Google's public DNS server", nargs=2, default=['8.8.8.8', 53])
+parser.add_argument("--conntest", help="Try connecting to ADDR:PORT as a test of general connectivity. The default is Google's public DNS server. Port 445 is SMB port", default='8.8.8.8:53', metavar="ADDR:PORT")
 parser.add_argument("--conntimeout", help="Timeout for connectivity test. Do not test if undefined", type=int)
 parser.add_argument("--logfile", help="Write messages to this log file. Do not write if undefined")
 parser.add_argument("--smtp", help="SMTP server for sending messages. Do not send messages if undefined")
@@ -149,8 +149,8 @@ if args.testmail:
     sys.exit(0)
 
 ## Perhaps test connectivity
-if args.conntimeout and not conntest(args.conntest, args.conntimeout):
-    log_and_send(args.logfile, args.smtp, args.sender, args.recipients, "{}:{} not reachable after {}s".format(args.conntest[0], args.conntest[1], args.conntimeout))
+if args.conntimeout and not conntest(args.conntest.split(':'), args.conntimeout):
+    log_and_send(args.logfile, args.smtp, args.sender, args.recipients, "{} not reachable after {}s".format(args.conntest, args.conntimeout))
     sys.exit(1)
 
 ## Get a list of connections
