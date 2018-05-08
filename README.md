@@ -32,3 +32,5 @@ mail.zag.si
 --recipient
 jan.kalin@zag.si
 ```
+
+The script returns `0` on successful exit, `1` on errors.
