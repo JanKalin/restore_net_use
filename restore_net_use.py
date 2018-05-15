@@ -145,6 +145,8 @@ def connect(connection, timeout):
 
 ## Perhaps just send a test mail
 if args.testmail:
+    if not args.smtp or not args.recipients:
+        raise ValueError("Missing option(s) --smtp and/or --recipient")
     log_and_send(args.logfile, args.smtp, args.sender, args.recipients, "This is a test message")
     sys.exit(0)
 
