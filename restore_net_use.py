@@ -35,6 +35,8 @@ parser = argparse.ArgumentParser(description=description,
                                fromfile_prefix_chars='@', 
                                formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument("--timeout", help="Timeout in seconds for each NET USE operation", type=int, default=60)
+parser.add_argument("--loops", help="Loop this many times od until all connections have been restored. 0 means loop forever", type=int, default=1)
+parser.add_argument("--loopdelay", help="Delay in seconds between loops", type=int, default=10)
 parser.add_argument("--conntest", help="Try connecting to ADDR:PORT as a test of general connectivity. The default is Google's public DNS server. Port 445 is SMB port", default='8.8.8.8:53', metavar="ADDR:PORT")
 parser.add_argument("--conntimeout", help="Timeout for connectivity test. Do not test if undefined", type=int)
 parser.add_argument("--logfile", help="Write messages to this log file. Do not write if undefined")
@@ -43,13 +45,26 @@ parser.add_argument("--sender", help="Sender email address for sending messages"
 parser.add_argument("--recipients", help="Recipient email addresses for sending messages", nargs='+')
 parser.add_argument("--testmail", help="Log and send a test message", action='store_true')
 parser.add_argument("--onebyone", help="Restore connections one by one for debugging purposes", action='store_true')
+parser.add_argument("--dumpnetuse", help="Dump NET USE command results to log", action='store_true')
 
 args = parser.parse_args()
+
+## Sanity checks
+if args.timeout < 1:
+    raise ValueError("Option --timeout must be positive")
+if args.loops < 1:
+    raise ValueError("Option --loops must be positive")
+if args.loopdelay < 1:
+    raise ValueError("Option --loopdelay must be positive")
+if args.conntimeout and args.conntimeout < 0:
+    raise ValueError("Option --conntimeout must be non-negative")
 
 ###########################################################################
 # %%
 
 def conntest(addr_port, timeout):
+    """Test connection"""
+    
     start = datetime.datetime.now()
     while True:
         try:
@@ -61,7 +76,9 @@ def conntest(addr_port, timeout):
                 return False
 
 
-def log(logfile, lines):
+def log(logfile, lines, loglines=None):
+    """Write to logfile and optionally append to an existing list of loglines"""
+    
     if not logfile or not lines:
         return
     if type(lines) == str:
@@ -70,11 +87,17 @@ def log(logfile, lines):
         with file(logfile, 'a') as f:
             for line in lines:
                 f.write("{}\t{}\n".format(datetime.datetime.now(), line))
+            if loglines:
+                loglines.append(line)
     except Exception:
         pass
+    if loglines:
+        return loglines
 
 
 def send(logfile, smtp, sender, recipients, lines):
+    """Send lines via email"""
+    
     if not smtp or not sender or not recipients or not lines:
         return
     if type(lines) == str:
@@ -94,10 +117,14 @@ def send(logfile, smtp, sender, recipients, lines):
    
 
 def log_and_send(logfile, smtp, sender, recipients, lines):
+    """Write to log and send email"""
+    
     log(logfile, lines)
     send(logfile, smtp, sender, recipients, lines)
 
-def list_connections(timeout):
+def list_connections(timeout, dumpnetuse=False):
+    """Call NET USE to determine the state of connections"""
+    
     while True:
         start = datetime.datetime.now()
         try:
@@ -110,22 +137,29 @@ def list_connections(timeout):
                 break
             else:
                 time.sleep(1)
-    return (errors, None if errors else parse_connections(net_use))
+    return (errors, None if errors else parse_connections(net_use, dumpnetuse))
     
 
-def parse_connections(line):
+def parse_connections(line, dumpnetuse=False):
+    """Parse the output of NET USE"""
+    
     lines = line.splitlines()
+    if dumpnetuse:
+        log(args.logfile, str(lines))
+    
     connections = []
     for line, next in zip(lines[:-1], lines[1:]):
         cols = line.split()
         nextcols = next.split()
         if len(cols) == 6 and re.match("[A-Z]:", cols[1]) and cols[3:] == ['Microsoft', 'Windows', 'Network'] or\
             len(cols) == 3 and len(nextcols) == 3 and re.match("[A-Z]:", cols[1]) and nextcols == ['Microsoft', 'Windows', 'Network']:
-            connections.append((cols[0] == 'ON', cols[1], cols[2]))
+            connections.append((cols[0] == 'OK', cols[1], cols[2]))
     return connections
 
 
 def connect(connection, timeout):
+    """Tries to reconnect a connection"""
+    
     start = datetime.datetime.now()
     while True:
         try:
@@ -155,23 +189,36 @@ if args.conntimeout and not conntest(args.conntest.split(':'), args.conntimeout)
     log_and_send(args.logfile, args.smtp, args.sender, args.recipients, "{} not reachable after {}s".format(args.conntest, args.conntimeout))
     sys.exit(1)
 
-## Get a list of connections
-(errors, connections) = list_connections(args.timeout)
-if errors:
-    log_and_send(args.logfile, args.smtp, args.sender, args.recipients, "Could not read connection list")
-    sys.exit(1)
-
-## Restore connections
+## Loop until connections have been restored
 loglines = []
-for idx, connection in enumerate(connections):
-    reportline = "{} {}".format(connection[1], connection[2])
-    if connection[0]:
-        logline = "Existing {}".format(reportline)
-    else:
-        if (args.onebyone and not idx or not args.onebyone) and connect(connection, args.timeout):
-            logline = "Restored {}".format(reportline)
-        else:
-            logline = "Problems {}".format(reportline)
-    log(args.logfile, logline)
-    loglines.append(logline)
+for loop in range(args.loops):
+
+    ## Log loop
+    loglines = log(args.logfile, "Loop {} of {}".format(loop+1, args.loops if not args.loops == sys.maxint else 'inf'), loglines)
+    if loop:
+        loglines = log(args.logfile, "Delay {}s".format(args.loopdelay), loglines)
+        time.sleep(args.loopdelay)
+    
+    ## Get a list of connections and we're done if they are all connected
+    (errors, connections) = list_connections(args.timeout, args.dumpnetuse)
+    if errors:
+        log_and_send(args.logfile, args.smtp, args.sender, args.recipients, "Could not read connection list")
+        sys.exit(1)
+    
+    ## Get a list of connected connections
+    ok = [x[1]+x[2] for x in connections if x[0]]
+    if len(ok):
+        loglines = log(args.logfile, "Existing {}".format(", ".join(ok)), loglines)
+        if len(ok) == len(connections):
+            break
+    for idx, connection in enumerate(connections):
+        reportline = "{}{}".format(connection[1], connection[2])
+        if not connection[0]:
+            if (args.onebyone and not idx or not args.onebyone) and connect(connection, args.timeout):
+                logline = "Restored {}".format(reportline)
+            else:
+                logline = "Problems {}".format(reportline)
+        loglines = log(args.logfile, logline, loglines)
+
+## Done
 send(args.logfile, args.smtp, args.sender, args.recipients, loglines)
